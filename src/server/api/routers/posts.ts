@@ -62,27 +62,22 @@ export const postsRouter = createTRPCRouter({
     return addUserToPosts(posts);
   }),
 
-  create: privateProcedure
+  getById: publicProcedure
     .input(
       z.object({
-        content: z.string().emoji("Only emojis are allowed").min(1).max(255),
+        id: z.string(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      const authorId = ctx.userId;
-
-      const { success } = await ratelimit.limit(authorId);
-
-      if (!success) throw new TRPCError({ code: "TOO_MANY_REQUESTS" });
-
-      const post = await ctx.prisma.post.create({
-        data: {
-          authorId,
-          content: input.content,
+    .query(async ({ ctx, input }) => {
+      const post = await ctx.prisma.post.findUnique({
+        where: {
+          id: input.id,
         },
       });
 
-      return post;
+      if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return (await addUserToPosts([post]))[0];
     }),
 
   getPostsByUserId: publicProcedure
@@ -106,4 +101,27 @@ export const postsRouter = createTRPCRouter({
         })
         .then(addUserToPosts)
     ),
+
+  create: privateProcedure
+    .input(
+      z.object({
+        content: z.string().emoji("Only emojis are allowed").min(1).max(255),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const authorId = ctx.userId;
+
+      const { success } = await ratelimit.limit(authorId);
+
+      if (!success) throw new TRPCError({ code: "TOO_MANY_REQUESTS" });
+
+      const post = await ctx.prisma.post.create({
+        data: {
+          authorId,
+          content: input.content,
+        },
+      });
+
+      return post;
+    }),
 });
